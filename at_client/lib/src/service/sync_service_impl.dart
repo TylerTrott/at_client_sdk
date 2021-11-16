@@ -97,7 +97,7 @@ class SyncServiceImpl implements SyncService, AtSignChangeListener {
       _logger.finer('got stats notification in sync: ${notification.value}');
       final serverCommitId = notification.value;
       if (serverCommitId != null &&
-          int.parse(serverCommitId) > await _getLocalCommitId()) {
+          int.parse(serverCommitId) != await _getLocalCommitId()) {
         final syncRequest = SyncRequest();
         syncRequest.onDone = _onDone;
         syncRequest.onError = _onError;
@@ -235,6 +235,7 @@ class SyncServiceImpl implements SyncService, AtSignChangeListener {
       syncResult.atClientException = AtClientException(
           at_client_error_codes['SyncException'], e.toString());
       syncResult.syncStatus = SyncStatus.failure;
+      _syncInProgress = false;
     }
     return syncResult;
   }
@@ -402,11 +403,15 @@ class SyncServiceImpl implements SyncService, AtSignChangeListener {
   /// Returns the cloud secondary latest commit id. if null, returns -1.
   ///Throws [AtLookUpException] if secondary is not reachable
   Future<int> _getServerCommitId() async {
-    var _serverCommitId = await SyncUtil.getLatestServerCommitId(
-        _remoteSecondary, _atClient.getPreferences()!.syncRegex);
-    // If server commit id is null, set to -1;
-    _serverCommitId ??= -1;
-    _logger.info('Returning the serverCommitId $_serverCommitId');
+    var _serverCommitId = -1;
+    try {
+      var _serverCommitId = await SyncUtil.getLatestServerCommitId(
+          _remoteSecondary, _atClient.getPreferences()!.syncRegex);
+      _logger.info('Returning the serverCommitId $_serverCommitId');
+    } on Exception catch (e) {
+      _logger.severe('Exception in getting server commitId ${e.toString()}');
+      _syncInProgress = false;
+    }
     return _serverCommitId;
   }
 
